@@ -1,0 +1,97 @@
+
+func.o:     file format elf32-littleriscv
+func.o
+architecture: riscv:rv32, flags 0x00000011:
+HAS_RELOC, HAS_SYMS
+start address 0x00000000
+
+Sections:
+Idx Name          Size      VMA       LMA       File off  Algn
+  0 .text         000000da  00000000  00000000  00000034  2**1
+                  CONTENTS, ALLOC, LOAD, RELOC, READONLY, CODE
+  1 .data         00000004  00000000  00000000  00000110  2**2
+                  CONTENTS, ALLOC, LOAD, RELOC, DATA
+  2 .bss          00000000  00000000  00000000  00000114  2**0
+                  ALLOC
+  3 .rodata       0000003a  00000000  00000000  00000114  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  4 .comment      00000033  00000000  00000000  0000014e  2**0
+                  CONTENTS, READONLY
+  5 .riscv.attributes 0000002e  00000000  00000000  00000181  2**0
+                  CONTENTS, READONLY
+SYMBOL TABLE:
+00000000 l    df *ABS*	00000000 func.c
+00000000 l    d  .text	00000000 .text
+00000000 l    d  .data	00000000 .data
+00000000 l    d  .bss	00000000 .bss
+00000000 l    d  .rodata	00000000 .rodata
+00000000 l     O .data	00000004 l_puts
+00000000 l       .rodata	00000000 .LC0
+00000010 l       .rodata	00000000 .LC1
+00000028 l       .rodata	00000000 .LC2
+0000003c l       .text	00000000 .L4
+00000062 l       .text	00000000 .L5
+00000000 l    d  .comment	00000000 .comment
+00000000 l    d  .riscv.attributes	00000000 .riscv.attributes
+00000000 g     F .text	00000020 add
+00000020 g     F .text	0000004e fib
+0000006e g     F .text	00000024 hello
+00000000         *UND*	00000000 puts
+00000092 g     F .text	00000048 test_datarel
+00000000         *UND*	00000000 printf
+
+
+RELOCATION RECORDS FOR [.text]:
+OFFSET   TYPE              VALUE 
+00000044 R_RISCV_CALL      fib
+00000056 R_RISCV_CALL      fib
+00000076 R_RISCV_HI20      .LC0
+0000007a R_RISCV_LO12_I    .LC0
+0000007e R_RISCV_CALL      puts
+0000009a R_RISCV_HI20      l_puts
+0000009e R_RISCV_LO12_I    l_puts
+000000b0 R_RISCV_HI20      .LC1
+000000b4 R_RISCV_LO12_I    .LC1
+000000b8 R_RISCV_CALL      printf
+000000c4 R_RISCV_HI20      .LC2
+000000c8 R_RISCV_LO12_I    .LC2
+00000034 R_RISCV_BRANCH    .L4
+0000003a R_RISCV_RVC_JUMP  .L5
+
+
+RELOCATION RECORDS FOR [.data]:
+OFFSET   TYPE              VALUE 
+00000000 R_RISCV_32        puts
+
+
+Contents of section .text:
+ 0000 011122ce 00102326 a4fe2324 b4fe0327  .."...#&..#$...'
+ 0010 c4fe8327 84feba97 3e857244 05618280  ...'....>.rD.a..
+ 0020 011106ce 22cc26ca 00102326 a4fe0327  ....".&...#&...'
+ 0030 c4fe8547 63c4e700 854725a0 8327c4fe  ...Gc....G%..'..
+ 0040 fd173e85 97000000 e7800000 aa848327  ..>............'
+ 0050 c4fef917 3e859700 0000e780 0000aa87  ....>...........
+ 0060 a6973e85 f2406244 d2440561 82804111  ..>..@bD.D.a..A.
+ 0070 06c622c4 0008b707 00001385 07009700  ..".............
+ 0080 0000e780 00008147 3e85b240 22444101  .......G>..@"DA.
+ 0090 82800111 06ce22cc 0010b707 000083a7  ......".........
+ 00a0 07002326 f4fe8327 c4fe3e86 fd87be86  ..#&...'..>.....
+ 00b0 b7070000 13850700 97000000 e7800000  ................
+ 00c0 0327c4fe b7070000 13850700 02978147  .'.............G
+ 00d0 3e85f240 62440561 8280               >..@bD.a..      
+Contents of section .data:
+ 0000 00000000                             ....            
+Contents of section .rodata:
+ 0000 48656c6c 6f206672 6f6d206f 626a2100  Hello from obj!.
+ 0010 67657420 6d795f70 75747320 3d203078  get my_puts = 0x
+ 0020 256c780a 00000000 74657374 20646174  %lx.....test dat
+ 0030 6172656c 206f6b21 0a00               arel ok!..      
+Contents of section .comment:
+ 0000 00474343 3a202854 2d484541 44205249  .GCC: (T-HEAD RI
+ 0010 53435620 546f6f6c 73205631 2e31302e  SCV Tools V1.10.
+ 0020 34204232 30323130 31323029 20382e34  4 B20210120) 8.4
+ 0030 2e3000                               .0.             
+Contents of section .riscv.attributes:
+ 0000 412d0000 00726973 63760001 23000000  A-...riscv..#...
+ 0010 05727633 32693270 305f6d32 70305f61  .rv32i2p0_m2p0_a
+ 0020 3270305f 66327030 5f633270 3000      2p0_f2p0_c2p0.  
