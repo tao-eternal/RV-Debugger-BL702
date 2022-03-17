@@ -74,9 +74,9 @@ int main(void) {
   f_chdrive("2:");
   struct heap_state state;
   while (1) {
-    mmheap_get_state(&mmheap_root, &state);
-    MSG("remain size: %dKB\r\n", state.remain_size / 1024);
-    bflb_platform_delay_ms(1000);
+    // mmheap_get_state(&mmheap_root, &state);
+    // MSG("remain size: %dKB\r\n", state.remain_size / 1024);
+    // bflb_platform_delay_ms(1000);
   }
   /*unmount*/
   f_mount(NULL, "2:", 1);
@@ -125,8 +125,13 @@ int modtest(int argc, char *argv[]) {
 
   add_t add = (add_t)rust_elf_sym(module, "add");
   fib_t fib = (fib_t)rust_elf_sym(module, "fib");
+
+  add_t test_extern_add = (add_t)rust_elf_sym(module, "test_extern_add");
+  add_t test_static_add = (add_t)rust_elf_sym(module, "test_static_add");
+  add_t test_local_add = (add_t)rust_elf_sym(module, "test_local_add");
   hello_t hello = (hello_t)rust_elf_sym(module, "hello");
-  test_datarel_t test_datarel = (test_datarel_t)rust_elf_sym(module,"test_datarel");
+  test_datarel_t test_datarel =
+      (test_datarel_t)rust_elf_sym(module, "test_datarel");
 
   // add_t add = (add_t)(Text);
   // fib_t fib = (fib_t)(Text + 0x20);
@@ -221,12 +226,18 @@ int modtest(int argc, char *argv[]) {
   //   cdc_acm_printf("0x56 CALL finished\r\n");
   // }
   // test
-  cdc_acm_printf("add(10,12)= %d\r\n", add(10, 22));
-  cdc_acm_printf("fib(15)= %d\r\n", fib(15));
-  cdc_acm_printf("hello()\r\n");
-  hello();
-  cdc_acm_printf("test_datarel()\r\n");
-  test_datarel();
+  if (add != NULL) cdc_acm_printf("add(10,12)= %d\r\n", add(10, 22));
+  if (fib != NULL) cdc_acm_printf("fib(15)= %d\r\n", fib(15));
+
+  if (test_extern_add != NULL)
+    cdc_acm_printf("test_extern_add(7,8)= %d\r\n", test_extern_add(7, 8));
+  if (test_static_add != NULL)
+    cdc_acm_printf("test_extern_add(7,8)= %d\r\n", test_static_add(7, 8));
+  if (test_local_add != NULL)
+    cdc_acm_printf("test_local_add(7,8)= %d\r\n", test_local_add(7, 8));
+  if (hello != NULL) cdc_acm_printf("hello()= %d\r\n", hello());
+  if (test_datarel != NULL)
+    cdc_acm_printf("test_datarel()= %d\r\n", test_datarel());
 
   // rust_free(Text);
   rust_elf_unload(module);
@@ -257,7 +268,8 @@ int modload(int argc, char *argv[]) {
   f_close(&fnew);
 
   if (module != NULL) {
-    cdc_acm_printf("load success! Handle is %p\r\n", module);
+    cdc_acm_printf("%s load success! Handle is %p\r\n", argv[1], module);
+    printf("%s load success! Handle is %p\r\n", argv[1], module);
   }
 
   return module;
@@ -280,6 +292,23 @@ int modsym(int argc, char *argv[]) {
 }
 SHELL_CMD_EXPORT(modsym, get sym from module handle or global with zero)
 
+int modcall(int argc, char *argv[]) {
+  if (argc < 3) {
+    cdc_acm_printf("Usage: modcall <handle> <symname>\r\n");
+    cdc_acm_printf("Tip: find from global if handle is 0\r\n");
+    return -1;
+  }
+
+  void *sym = rust_elf_sym(strtol(argv[1], NULL, 16), argv[2]);
+  if (sym != NULL) {
+    void (*p)(void) = sym;
+    p();
+  }
+
+  return sym;
+}
+SHELL_CMD_EXPORT(modcall, call sym from loaded module)
+
 int modunload(int argc, char *argv[]) {
   if (argc < 2) {
     cdc_acm_printf("Usage: modunload <handle>\r\n");
@@ -291,6 +320,13 @@ int modunload(int argc, char *argv[]) {
   return 0;
 }
 SHELL_CMD_EXPORT(modunload, unload module with handle)
+
+int modules(int argc, char *argv[]) {
+  rust_elf_modules();
+
+  return 0;
+}
+SHELL_CMD_EXPORT(modules, show all modules)
 
 int dump(int argc, char *argv[]) {
   uint8_t *ReadBuffer = NULL;

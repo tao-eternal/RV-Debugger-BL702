@@ -1,8 +1,13 @@
-extern int add(int a, int b);   //无重定位的最简单情况
+extern int add(int a, int b);
 
+typedef int (*add_func_t)(int, int);
+static void* static_add = (void*)add;
 
-extern int fib(int n);          //需要重定位，实现约三条内部跳转的重定位码
+int test_extern_add(int a, int b) { return add(a, b); }
 
-int test_fib_add1(int n) {
-    return add(1, fib(n));
+int test_static_add(int a, int b) { return ((add_func_t)static_add)(a, b); }
+
+int test_local_add(int a, int b) {
+  add_func_t local_add = (add_func_t)static_add;
+  return local_add(a, b);
 }
