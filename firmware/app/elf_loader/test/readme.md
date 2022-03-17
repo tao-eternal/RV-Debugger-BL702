@@ -9,10 +9,9 @@ riscv64-unknown-elf-gcc -march=rv32imafc -mabi=ilp32f
 nm -g xxx.elf |grep printf
 ```
 
-then modify **ker.c** and re-compile it
+then modify **ker.S** and re-compile it
 
 copy **ker.o** and **func.o** into the `msc`
-
 
 ## serial
 
