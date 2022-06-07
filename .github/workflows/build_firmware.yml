@@ -40,6 +40,7 @@ jobs:
         PATH="/opt/riscv64-unknown-elf/bin:$PATH"
         make BOARD=bl702_debugger APP_DIR=../app APP=usb2uartjtag
         make BOARD=bl702_debugger_dualuart APP_DIR=../app APP=usb2dualuart
+        make BOARD=bl702_debugger APP_DIR=../app APP=la
     - name: Archive firmware
       uses: actions/upload-artifact@v2
       with:
