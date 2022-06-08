@@ -1,6 +1,6 @@
 #include "usb_dscr.h"
 
-#define USB_DESCRIPITOR_LEN (9 + 7)
+#define USB_DESCRIPITOR_LEN (9 + 7 + 7)
 #define USB_CONFIG_SIZE (9 + USB_DESCRIPITOR_LEN)
 #define USBD_MAX_POWER (100) /* 100/2 = 50 */
 #define USBD_LANGID_STRING (0x0409)
@@ -21,10 +21,12 @@ USB_DESC_SECTION uint8_t usb_descriptor[] = {
     ///////////////////////////////////////
     /// interface0 descriptor
     ///////////////////////////////////////
-    USB_INTERFACE_DESCRIPTOR_INIT(0x00, 0x00, 0x01,
+    USB_INTERFACE_DESCRIPTOR_INIT(0x00, 0x00, 0x02,
                                   USB_DEVICE_CLASS_VEND_SPECIFIC, 0xff, 0xff,
                                   USB_STRING_LANGID_INDEX),
-    USB_ENDPOINT_DESCRIPTOR_INIT(FX_IN_EP, USB_ENDPOINT_TYPE_BULK, 0x0040,
+    USB_ENDPOINT_DESCRIPTOR_INIT(DS_OUT_EP, USB_ENDPOINT_TYPE_BULK, 0x0040,
+                                 0x00),
+    USB_ENDPOINT_DESCRIPTOR_INIT(DS_IN_EP, USB_ENDPOINT_TYPE_BULK, 0x0040,
                                  0x00),
 
     ///////////////////////////////////////

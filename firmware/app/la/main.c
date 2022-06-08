@@ -23,6 +23,7 @@
 
 #include "bflb_platform.h"
 #include "led_ctrl.h"
+#include "protocol.h"
 #include "usb_dscr.h"
 
 /* Protocol commands */
@@ -41,25 +42,87 @@
 #define CMD_START_FLAGS_CLK_30MHZ (0 << CMD_START_FLAGS_CLK_SRC_POS)
 #define CMD_START_FLAGS_CLK_48MHZ (1 << CMD_START_FLAGS_CLK_SRC_POS)
 
-#define FX2LAFW_VERSION_MAJOR 1
-#define FX2LAFW_VERSION_MINOR 4
-static struct version_info {
-  uint8_t major;
-  uint8_t minor;
-} const fx2la_vi = {
-    .major = FX2LAFW_VERSION_MAJOR,
-    .minor = FX2LAFW_VERSION_MINOR,
-};
-static uint8_t REV_ID = 0x01;
+#define FW_VERSION_MAJOR 02
+#define FW_VERSION_MINOR 00
 
-struct cmd_start_acquisition {
-  uint8_t flags;
-  uint8_t sample_delay_h;
-  uint8_t sample_delay_l;
-};
+#define NUM_TRIGGER_STAGES 16
+static /*
+        * hardware setting for each capture
+        */
+    struct DSL_setting {
+  uint32_t sync;
+
+  uint16_t mode_header;  // 0
+  uint16_t mode;
+  uint16_t divider_header;  // 1-2
+  uint16_t div_l;
+  uint16_t div_h;
+  uint16_t count_header;  // 3-4
+  uint16_t cnt_l;
+  uint16_t cnt_h;
+  uint16_t trig_pos_header;  // 5-6
+  uint16_t tpos_l;
+  uint16_t tpos_h;
+  uint16_t trig_glb_header;  // 7
+  uint16_t trig_glb;
+  uint16_t dso_count_header;  // 8-9
+  uint16_t dso_cnt_l;
+  uint16_t dso_cnt_h;
+  uint16_t ch_en_header;  // 10-11
+  uint16_t ch_en_l;
+  uint16_t ch_en_h;
+  uint16_t fgain_header;  // 12
+  uint16_t fgain;
+
+  uint16_t trig_header;  // 64
+  uint16_t trig_mask0[NUM_TRIGGER_STAGES];
+  uint16_t trig_mask1[NUM_TRIGGER_STAGES];
+  uint16_t trig_value0[NUM_TRIGGER_STAGES];
+  uint16_t trig_value1[NUM_TRIGGER_STAGES];
+  uint16_t trig_edge0[NUM_TRIGGER_STAGES];
+  uint16_t trig_edge1[NUM_TRIGGER_STAGES];
+  uint16_t trig_logic0[NUM_TRIGGER_STAGES];
+  uint16_t trig_logic1[NUM_TRIGGER_STAGES];
+  uint32_t trig_count[NUM_TRIGGER_STAGES];
+
+  uint32_t end_sync;
+} g_sla_config;
 
 static void lafw_init(void);
 static void lafw_poll(void);
+
+static void usbd_cdc_acm_bulk_out(uint8_t ep) {
+  uint8_t ep_idx = USB_EP_GET_IDX(ep);
+
+  /* Check if OUT ep */
+  if (USB_EP_GET_DIR(ep) != USB_EP_DIR_OUT) {
+    return -USB_DC_EP_DIR_ERR;
+  }
+
+  uint32_t timeout = 0x0000FFFF;
+  while (!USB_Is_EPx_RDY_Free(ep_idx)) {
+    timeout--;
+    if (!timeout) {
+      LOG_E("ep%d wait free timeout\r\n", ep);
+      return -USB_DC_EP_TIMEOUT_ERR;
+    }
+  }
+
+  uint8_t recv_len = USB_Get_EPx_RX_FIFO_CNT(ep_idx);
+
+  uint32_t addr = USB_BASE + 0x10C + ep_idx * 0x10;
+  // fifocopy_to_mem((void *)addr, (uint8_t *)ftdi_header, 2);
+  fifocopy_to_mem((void *)addr, (uint8_t *)&g_sla_config,
+                  sizeof(struct DSL_setting));
+  // uint8_t *p = (uint8_t *)addr;
+  // uint8_t *q = (uint8_t *)&g_sla_config;
+  // for (int i = 0; i < sizeof(struct DSL_setting); i++) {
+  //   q[i] = *p;
+  // }
+
+  USB_Set_EPx_Rdy(ep_idx);
+  return 0;
+}
 
 /* Anythingelse -> USB in */
 static void usbd_cdc_acm_bulk_in(uint8_t ep) {
@@ -83,7 +146,7 @@ static void usbd_cdc_acm_bulk_in(uint8_t ep) {
   // memcopy_to_fifo((void *)addr, (uint8_t *)ftdi_header, 2);
   uint8_t *p = (uint8_t *)addr;
   uint8_t q[] = {0xa5};
-  for (int i = 0; i < 64; i++) {
+  for (int i = 0; i < USB_Get_EPx_TX_FIFO_CNT(ep_idx); i++) {
     *p = *q;
   }
   USB_Set_EPx_Rdy(ep_idx);
@@ -103,23 +166,55 @@ static void fx2la_notify_handler(uint8_t event, void *arg) {
 static int fx2la_vendor_request_handler(struct usb_setup_packet *pSetup,
                                         uint8_t **data, uint32_t *len) {
   LOG_W(
-      "[fx2la] request 0x%02x(type: 0x%02x), i: 0x%04x, v: 0x%04x, l: 0x "
+      "[sla] request 0x%02x(type: 0x%02x), i: 0x%04x, v: 0x%04x, l: 0x "
       "%04x\r ",
       pSetup->bRequest, pSetup->bmRequestType, pSetup->wIndex, pSetup->wValue,
       pSetup->wLength);
 
+  static uint8_t usbrd_buf[256] = {0};
+  struct ctl_header *ph = NULL;
+  struct version_info *pvi = NULL;
+
   switch (pSetup->bRequest) {
-    case CMD_START:
+    case CMD_CTL_WR:
       break;
-    case CMD_GET_FW_VERSION:
-      /* Populate the buffer. */
-      *data = (uint8_t *)&fx2la_vi;
-      *len = sizeof(struct version_info);
+    case CMD_CTL_RD_PRE:
+      ph = *data;
+      switch (ph->dest) {
+        case DSL_CTL_FW_VERSION:
+          pvi = (struct version_info *)usbrd_buf;
+          pvi->major = FW_VERSION_MAJOR;
+          pvi->minor = FW_VERSION_MINOR;
+          break;
+        case DSL_CTL_HW_STATUS:
+          usbrd_buf[0] = 0xc9;
+          break;
+        case DSL_CTL_I2C_STATUS:
+          usbrd_buf[0] = 0x00;
+          usbrd_buf[1] = 0x00;
+          usbrd_buf[2] = 0x00;
+          usbrd_buf[3] = 0x00;
+          usbrd_buf[4] = 0x0d;
+          break;
+        default:
+          break;
+      }
       break;
-    case CMD_GET_REVID_VERSION:
-      *data = &REV_ID;
-      *len = 1;
+    case CMD_CTL_RD:
+      *data = usbrd_buf;
+      *len = pSetup->wLength;
       break;
+    // case CMD_START:
+    //   break;
+    // case CMD_GET_FW_VERSION:
+    //   /* Populate the buffer. */
+    //   *data = (uint8_t *)&fx2la_vi;
+    //   *len = sizeof(struct version_info);
+    //   break;
+    // case CMD_GET_REVID_VERSION:
+    //   *data = &REV_ID;
+    //   *len = 1;
+    //   break;
     default:
       return -1;
   }
@@ -127,9 +222,11 @@ static int fx2la_vendor_request_handler(struct usb_setup_packet *pSetup,
 }
 
 static struct device *usb_fs;
-static usbd_class_t fx_class;
-static usbd_interface_t fx_data_intf;
-static usbd_endpoint_t fx_in_ep = {.ep_addr = FX_IN_EP,
+static usbd_class_t ds_class;
+static usbd_interface_t ds_data_intf;
+static usbd_endpoint_t ds_out_ep = {.ep_addr = DS_OUT_EP,
+                                    .ep_cb = usbd_cdc_acm_bulk_out};
+static usbd_endpoint_t ds_in_ep = {.ep_addr = DS_IN_EP,
                                    .ep_cb = usbd_cdc_acm_bulk_in};
 
 /* external funtion and data */
@@ -147,15 +244,16 @@ int main(void) {
 
   /* configurate USB device */
   usbd_desc_register(usb_descriptor);
-  usbd_class_register(&fx_class);
+  usbd_class_register(&ds_class);
   // fixme need to use fx vender MAYBE?
-  (&fx_data_intf)->vendor_handler = fx2la_vendor_request_handler;
-  (&fx_data_intf)->notify_handler = fx2la_notify_handler;
-  usbd_class_add_interface(&fx_class, &fx_data_intf);
-  usbd_interface_add_endpoint(&fx_data_intf, &fx_in_ep);
+  (&ds_data_intf)->vendor_handler = fx2la_vendor_request_handler;
+  (&ds_data_intf)->notify_handler = fx2la_notify_handler;
+  usbd_class_add_interface(&ds_class, &ds_data_intf);
+  usbd_interface_add_endpoint(&ds_data_intf, &ds_out_ep);
+  usbd_interface_add_endpoint(&ds_data_intf, &ds_in_ep);
   if (NULL != (usb_fs = usb_dc_init()))
     device_control(usb_fs, DEVICE_CTRL_SET_INT,
-                   (USB_SOF_IT | USB_EP2_DATA_IN_IT));
+                   (USB_SOF_IT | USB_EP2_DATA_OUT_IT | USB_EP6_DATA_IN_IT));
   while (!usb_device_is_configured())
     LED_TOGGLE(0); /* led0 blink for waitting usb be ready*/
 
