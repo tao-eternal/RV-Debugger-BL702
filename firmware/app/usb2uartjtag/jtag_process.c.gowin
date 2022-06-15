@@ -415,7 +415,7 @@ ATTR_CLOCK_SECTION void jtag_process(void)
 
 	//MSG("#%d#", jtag_rx_len);
 	//MSG("+%ldus, %d\r\n", mtimer_get_time_us(), jtag_rx_len);
-	disable_irq();
+    cpu_global_irq_disable();
     doing_flag = 1;
 	while(jtag_rx_pos < jtag_rx_len)
 #else
@@ -816,7 +816,7 @@ ATTR_CLOCK_SECTION void jtag_process(void)
 	//MSG("-%ldus\r\n", mtimer_get_time_us());
     doing_flag = 0;
     ef_flag = 0;
-    enable_irq();
+    cpu_global_irq_enable();
     
 	return;
 }
